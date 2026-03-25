@@ -1,6 +1,6 @@
 # Linear Regression Forecasting Exchange Rates
 
-This project obtains data from the [Central Bank of Armenia's open API](http://api.cba.am/exchangerates.asmx), covering the data from a specified start date for any of the 30 supported currencies.
+This project obtains data from the [Central Bank of Uzbekistan's open API](https://cbu.uz/uz/arkhiv-kursov-valyut/json/), covering the data from a specified start date for any of the 30 supported currencies.
 
 | ISO   | Currency                | ISO   | Currency                |
 |-------|-------------------------|-------|-------------------------|
