@@ -32,12 +32,6 @@ To install the necessary dependencies, once you've cloned the repo, cd to the di
 pip3 install -r requirements.txt
 ```
 
-Before proceeding, make sure to configure the exchange rate data fetching. In the `exchange_rate_data/data_fetcher.py` file, specify the ISO code of the desired currency and the start date in the format YYYY-MM-DD:
-
-```python
-iso_codes = 'USD'
-start_date = '2023-09-01'
-```
 Once you've configured the data fetcher, you can run the application as follows:
 
 ```bash
