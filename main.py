@@ -1,48 +1,79 @@
 import matplotlib.pyplot as plt
-import pandas as pd
-from datetime import date, timedelta
-from exchange_rate_data.data_fetcher import get_data
+from datetime import timedelta
+# O'zingiz yaratgan papka va fayldan funksiyani chaqiramiz
+from exchange_rate_data.data_fetcher import get_cbu_data
+
 
 def main():
-    data = get_data()
-    print(data)
+    print("--- Valyuta kursi bashorati tizimi ---")
 
-    # Calculate the linear regression
-    min_date = min(data['Date'])
-    data['Date'] = [(d - min_date).days for d in data['Date']]
+    # 1. Valyuta turini kiritish
+    valyuta = input("Valyuta kodini kiriting (masalan: USD, EUR, RUB, GBP): ").upper()
 
-    n = len(data['Date'])
-    sum_x = data['Date'].sum()
-    sum_y = data['Rate'].sum()
-    sum_xy = (data['Date'] * data['Rate']).sum()
-    sum_x_squared = (data['Date']**2).sum()
+    # 2. Bashorat davrini kiritish
+    try:
+        future_days = int(input(f"{valyuta} kursi necha kundan keyin qancha bo'lishini bilmoqchisiz?: "))
+    except ValueError:
+        print("Xato: Iltimos, kunni raqamda kiriting!")
+        return
 
-    w1 = (n * sum_xy - sum_x * sum_y) / (n * sum_x_squared - sum_x**2)
-    w0 = (sum_y - w1 * sum_x) / n
+    # 3. Ma'lumotlarni olish (tahlil uchun 60 kunlik yetarli)
+    df = get_cbu_data(currency_code=valyuta, days_count=60)
 
-    regression = w0 + w1 * data['Date']
+    if df is None or len(df) < 2:
+        print(f"Xato: {valyuta} bo'yicha ma'lumot topilmadi yoki yetarli emas.")
+        return
 
-    # Calculate forecasting
-    last_day = data['Date'].max()
-    forecast = w0 + w1 * last_day
+    # 4. Matematik Regressiya (y = w1*x + w0)
+    start_date = df['Date'].min()
+    df['Days'] = (df['Date'] - start_date).dt.days
 
-    # Retrieve the real exchange rate
-    real_rate = data[data['Date'] == last_day]['Rate'].values[0]
+    n = len(df)
+    x = df['Days']
+    y = df['Rate']
 
-    print("Forecast:", forecast)
-    print("Real Rate:", real_rate)
+    # Chiziqli regressiya formulasi
+    w1 = (n * (x * y).sum() - x.sum() * y.sum()) / (n * (x ** 2).sum() - (x.sum()) ** 2)
+    w0 = (y.sum() - w1 * x.sum()) / n
 
-    # Plot the data and regression line
-    plt.scatter(data['Date'], data['Rate'], c='gray', label='Exchange Rates')
-    plt.plot(data['Date'], regression, c='b', label='Linear Regression')
-    plt.scatter(last_day, real_rate, c='g', label='Real Rate')
-    plt.scatter(last_day, forecast, c='r', label='Forecast')
+    df['Trend'] = w1 * x + w0
 
-    date_labels = [(min_date + timedelta(days=x)).strftime("%d.%m") for x in data['Date']]
-    plt.xticks(data['Date'], date_labels, rotation=45)
+    # 5. Kelajakni bashorat qilish
+    today_num = df['Days'].max()
+    target_day_num = today_num + future_days
+    forecast_rate = w1 * target_day_num + w0
+    forecast_date = df['Date'].max() + timedelta(days=future_days)
 
+    # 6. Natijalarni chiqarish
+    current_rate = df.iloc[-1]['Rate']
+    print("\n" + "=" * 50)
+    print(f"Tanlangan valyuta: {valyuta}")
+    print(f"Bugungi kurs: {current_rate} UZS")
+    print(f"Bashorat sanasi: {forecast_date.strftime('%d.%m.%Y')}")
+    print(f"Kutilayotgan narx: {forecast_rate:.2f} UZS")
+    print(f"Taxminiy o'zgarish: {forecast_rate - current_rate:+.2f} UZS")
+    print("=" * 50)
+
+    # 7. Grafik chizish
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['Date'], df['Rate'], label=f'Haqiqiy {valyuta} kursi', color='gray', alpha=0.6)
+    plt.plot(df['Date'], df['Trend'], label='Trend yo\'nalishi', color='blue', linestyle='--')
+
+    # Bashorat nuqtasi
+    plt.scatter(forecast_date, forecast_rate, color='red', s=100, label=f'Bashorat: {forecast_rate:.0f}', zorder=5)
+
+    # Kelajakka yo'nalish chizig'i
+    plt.plot([df['Date'].max(), forecast_date], [df.iloc[-1]['Trend'], forecast_rate], color='red', linestyle=':')
+
+    plt.title(f"{valyuta}/UZS Kursi: O'tmish va {future_days} kunlik bashorat")
+    plt.xlabel("Sana")
+    plt.ylabel(f"Kurs ({valyuta} -> UZS)")
     plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
     plt.show()
+
 
 if __name__ == "__main__":
     main()

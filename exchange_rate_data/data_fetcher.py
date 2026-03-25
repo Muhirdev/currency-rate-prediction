@@ -1,44 +1,33 @@
 import requests
 import pandas as pd
-from datetime import datetime, date
-from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
 
-def get_data():
-    # Data for the request
-    api_url = 'http://api.cba.am/exchangerates.asmx'
-    iso_codes = 'USD'
-    start_date = '2023-09-01'
-    end_date = date.today().strftime("%Y-%m-%d")
 
-    # Perform the POST request to the API
-    request_body = f"""<?xml version="1.0" encoding="utf-8"?>
-    <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-      <soap:Body>
-        <ExchangeRatesByDateRangeByISO xmlns="http://www.cba.am/">
-          <ISOCodes>{iso_codes}</ISOCodes>
-          <DateFrom>{start_date}</DateFrom>
-          <DateTo>{end_date}</DateTo>
-        </ExchangeRatesByDateRangeByISO>
-      </soap:Body>
-    </soap:Envelope>
+def get_cbu_data(currency_code='USD', days_count=60):
     """
-    request_headers = {'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': 'http://www.cba.am/ExchangeRatesByDateRangeByISO'}
-    response = requests.post(api_url, data=request_body, headers=request_headers)
+    Markaziy bankdan tanlangan valyuta (currency_code) bo'yicha
+    oxirgi N kunlik ma'lumotni yig'ish.
+    """
+    data_list = []
+    print(f"\n{currency_code} bo'yicha oxirgi {days_count} kunlik ma'lumotlar yig'ilmoqda...")
 
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'xml')
-        data = []
+    for i in range(days_count):
+        # Sanani orqaga qarab hisoblash
+        target_date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+        # URLga valyuta kodini joylashtiramiz
+        url = f"https://cbu.uz/uz/arkhiv-kursov-valyut/json/{currency_code}/{target_date}/"
 
-        for entry in soup.find_all('ExchangeRatesByRange'):
-            rate_date = datetime.strptime(entry.find('RateDate').text, "%Y-%m-%dT%H:%M:%S%z").date()
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200 and response.json():
+                item = response.json()[0]
+                d = datetime.strptime(item['Date'], '%d.%m.%Y')
+                rate = float(item['Rate'])
+                data_list.append({'Date': d, 'Rate': rate})
+        except:
+            continue
 
-            rate = float(entry.find('Rate').text)
-            data.append([rate_date, rate])
-
-        # Create a DataFrame
-        df = pd.DataFrame(data, columns=['Date', 'Rate']).iloc[:-1]
-        return df
-
-    else:
-        print(f"HTTP Error: {response.status_code}")
-        return None
+    df = pd.DataFrame(data_list)
+    if not df.empty:
+        df = df.sort_values('Date').reset_index(drop=True)
+    return df
